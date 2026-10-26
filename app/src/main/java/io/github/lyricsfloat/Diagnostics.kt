@@ -52,6 +52,7 @@ object Diagnostics {
                 null -> "ищется"
                 else -> l.javaClass.simpleName
             }}")
+            appendLine("Офлайн-кэш: ${LyricsCache.count()} текстов, ${LyricsCache.sizeBytes() / 1024} КБ")
             appendLine("Окно включено: ${ctx.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE).getBoolean(Prefs.ENABLED, false)}")
             lastError?.let { appendLine("Последняя ошибка (${fmt.format(Date(lastErrorAt))}):\n$it") }
             val crash = crashFile(ctx)
@@ -72,6 +73,7 @@ class App : Application() {
             }
             previous?.uncaughtException(thread, e)
         }
+        LyricsCache.init(this)
         val prefs = getSharedPreferences(Prefs.NAME, MODE_PRIVATE)
         NowPlaying.setAutoScroll(prefs.getBoolean(Prefs.AUTO_SCROLL, false))
         NowPlaying.setAutoScrollSpeed(prefs.getFloat(Prefs.AUTO_SCROLL_SPEED, 1f))

@@ -53,12 +53,19 @@ object LyricsFetcher {
     ): Lyrics {
         val key = "$artist|$title"
         synchronized(cache) { cache[key]?.let { return it } }
+        // Офлайн-кэш на телефоне: мгновенно и без интернета.
+        LyricsCache.get(artist, title)?.let { saved ->
+            synchronized(cache) { cache[key] = saved }
+            return saved
+        }
         val result = try {
             find(artist, title, album, durationMs, onStatus)
         } catch (e: Exception) {
             // Ошибки сети не кэшируем, чтобы можно было повторить.
             return Lyrics.Error(e.message ?: e.javaClass.simpleName)
         }
+        // «Не найдено» на диск не пишем: текст может появиться в базе позже.
+        LyricsCache.put(artist, title, result)
         synchronized(cache) { cache[key] = result }
         return result
     }

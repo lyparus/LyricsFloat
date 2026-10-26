@@ -5,7 +5,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.security.MessageDigest
-import kotlin.synchronized
 
 /** Офлайн-кэш найденных текстов: по файлу JSON на трек в filesDir/lyrics_cache, не больше MAX_ENTRIES. */
 object LyricsCache {
@@ -21,9 +20,7 @@ object LyricsCache {
     fun get(artist: String, title: String): Lyrics? {
         if (dir == null) return null
         try {
-            val key = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
-            val fileName = "%s.json".format(MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) })
-            val file = File(dir, fileName)
+            val file = fileFor(artist, title)
             if (!file.exists()) return null
             
             val jsonText = file.readText(Charsets.UTF_8)
@@ -33,7 +30,7 @@ object LyricsCache {
             
             return when (obj.getString("type")) {
                 "synced" -> {
-                    val lines = JSONArray(obj.getJSONArray("lines"))
+                    val lines = obj.getJSONArray("lines")
                     val lyricLines = mutableListOf<LyricLine>()
                     for (i in 0 until lines.length()) {
                         val line = lines.getJSONObject(i)
@@ -56,9 +53,7 @@ object LyricsCache {
         try {
             when (lyrics) {
                 is Lyrics.Synced -> {
-                    val key = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
-                    val fileName = "%s.json".format(MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) })
-                    val file = File(dir, fileName)
+                    val file = fileFor(artist, title)
                     
                     val obj = JSONObject()
                     obj.put("type", "synced")
@@ -77,9 +72,7 @@ object LyricsCache {
                     file.writeText(obj.toString(), Charsets.UTF_8)
                 }
                 is Lyrics.Plain -> {
-                    val key = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
-                    val fileName = "%s.json".format(MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) })
-                    val file = File(dir, fileName)
+                    val file = fileFor(artist, title)
                     
                     val obj = JSONObject()
                     obj.put("type", "plain")
@@ -90,9 +83,7 @@ object LyricsCache {
                     file.writeText(obj.toString(), Charsets.UTF_8)
                 }
                 is Lyrics.Instrumental -> {
-                    val key = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
-                    val fileName = "%s.json".format(MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) })
-                    val file = File(dir, fileName)
+                    val file = fileFor(artist, title)
                     
                     val obj = JSONObject()
                     obj.put("type", "instrumental")
@@ -103,10 +94,9 @@ object LyricsCache {
                 else -> return
             }
             
-            // Clean up old entries if needed
+            // Не даём кэшу расти бесконечно.
             cleanupOldEntries()
         } catch (e: Exception) {
-            // Ignore exceptions
         }
     }
 
@@ -116,7 +106,6 @@ object LyricsCache {
         try {
             dir?.listFiles()?.forEach { it.delete() }
         } catch (e: Exception) {
-            // Ignore exceptions
         }
     }
 
@@ -140,6 +129,14 @@ object LyricsCache {
         }
     }
 
+    /** Файл кэша для трека: SHA-1 от «исполнитель|название» в нижнем регистре. */
+    private fun fileFor(artist: String, title: String): File {
+        val key = "${artist.trim().lowercase()}|${title.trim().lowercase()}"
+        val hash = MessageDigest.getInstance("SHA-1").digest(key.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        return File(dir, "$hash.json")
+    }
+
     private fun cleanupOldEntries() {
         if (dir == null) return
         try {
@@ -150,7 +147,6 @@ object LyricsCache {
                 files[i].delete()
             }
         } catch (e: Exception) {
-            // Ignore exceptions
         }
     }
 }

@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var hint: TextView
     private lateinit var diagView: TextView
     private lateinit var diagBody: LinearLayout
+    private lateinit var cacheInfo: TextView
 
     private val prefs by lazy { getSharedPreferences(Prefs.NAME, MODE_PRIVATE) }
     private val listener by lazy { ComponentName(this, MediaListener::class.java) }
@@ -52,6 +53,7 @@ class MainActivity : Activity() {
         box.addView(mainCard())
         box.addView(featuresCard())
         box.addView(sourcesCard())
+        box.addView(cacheCard())
         box.addView(permissionsCard())
         box.addView(diagnosticsCard())
         box.addView(footer())
@@ -153,6 +155,24 @@ class MainActivity : Activity() {
         addView(Ui.text(this@MainActivity,
             "С YouTube название берётся из заголовка видео, поэтому находится не всё.", 12f, Ui.TEXT_DIM)
             .apply { setPadding(0, dp(6), 0, 0) })
+    }
+
+    private fun cacheCard() = Ui.card(this, "Офлайн-кэш").apply {
+        val c = this@MainActivity
+        cacheInfo = Ui.text(c, "", 14f).apply { setPadding(0, dp(10), 0, 0) }
+        addView(cacheInfo)
+        addView(Ui.text(c, "Найденные тексты сохраняются на телефоне и открываются без интернета.", 12f, Ui.TEXT_DIM))
+        addView(Ui.linkButton(c, "Очистить кэш") {
+            LyricsCache.clear()
+            updateCacheInfo()
+            Toast.makeText(c, "Кэш очищен", Toast.LENGTH_SHORT).show()
+        })
+    }
+
+    private fun updateCacheInfo() {
+        val count = LyricsCache.count()
+        val kb = LyricsCache.sizeBytes() / 1024
+        cacheInfo.text = if (count == 0) "Пока пусто" else "Сохранено текстов: $count · $kb КБ"
     }
 
     private fun permissionsCard() = Ui.card(this, "Разрешения").apply {
@@ -285,6 +305,7 @@ class MainActivity : Activity() {
         MediaWatcher.start(this)
         KeepAliveService.sync(this)
         updateButtons()
+        updateCacheInfo()
         if (hasNotificationAccess()) NotificationListenerService.requestRebind(listener)
         if (diagBody.visibility == View.VISIBLE) diagView.postDelayed({ updateDiagnostics() }, 800)
     }
