@@ -44,7 +44,14 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
     private val colorAccent = 0xFFFFCC00.toInt()
     /** Непрозрачность фона окна в процентах (настраивается). */
     private var opacity = prefs.getInt(Prefs.OVERLAY_OPACITY, 90)
-    private val colorBg get() = ((opacity.coerceIn(20, 100) * 255 / 100) shl 24) or 0x161616
+    /** Акцент из обложки текущего трека; null — обложки нет или она серая. */
+    private var coverAccent: Int? = null
+    private val accent get() = coverAccent ?: colorAccent
+    private val colorBg: Int
+        get() {
+            val base = coverAccent?.let { CoverColors.darkTint(it) and 0xFFFFFF } ?: 0x161616
+            return ((opacity.coerceIn(20, 100) * 255 / 100) shl 24) or base
+        }
 
     private val minWidth get() = dp(200)
     private val minHeight get() = dp(48)
@@ -98,12 +105,16 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
         sliderValue = opacity,
         onSlider = { setOpacity(it) },
         onClose = { toggleSettings() },
+        toggle = Triple("Обложка на фоне", prefs.getBoolean(Prefs.OVERLAY_COVER_BG, true)) { on ->
+            prefs.edit().putBoolean(Prefs.OVERLAY_COVER_BG, on).apply()
+            applyArt()
+        },
     )
     private val settingsParams = overlayParams(dp(300))
 
-    private val root = LinearLayout(ctx).apply {
+    /** Содержимое окна: шапка, текст, нижняя панель. */
+    private val content = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
-        background = rootBackground
         setPadding(dp(8), dp(2), dp(4), 0)
         val header = LinearLayout(ctx).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -121,6 +132,24 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
             prefs.getInt(Prefs.HEIGHT, dp(200)).coerceIn(minHeight, (screenH * 0.8).toInt()),
         ))
         addView(bottomRow)
+    }
+
+    /** Размытая обложка под содержимым. */
+    private val coverBg = ImageView(ctx).apply {
+        scaleType = ImageView.ScaleType.CENTER_CROP
+        visibility = View.GONE
+    }
+
+    /** Окно целиком: обложка → полупрозрачный тёмный слой → содержимое, со скруглёнными углами. */
+    private val root = android.widget.FrameLayout(ctx).apply {
+        addView(coverBg, android.widget.FrameLayout.LayoutParams(-1, -1))
+        addView(View(ctx).apply { background = rootBackground }, android.widget.FrameLayout.LayoutParams(-1, -1))
+        addView(content, android.widget.FrameLayout.LayoutParams(-1, -2))
+        outlineProvider = object : android.view.ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: android.graphics.Outline) =
+                outline.setRoundRect(0, 0, view.width, view.height, dp(16).toFloat())
+        }
+        clipToOutline = true
     }
 
     private val params = overlayParams(
@@ -168,13 +197,15 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
                 panel.recenter()
             }
             NowPlaying.Change.FULLSCREEN -> syncWindows()
-            NowPlaying.Change.ART, NowPlaying.Change.PLAYBACK -> {}
+            NowPlaying.Change.ART -> applyArt()
+            NowPlaying.Change.PLAYBACK -> {}
         }
     }
 
     init {
         NowPlaying.addListener(stateListener)
         stateListener(NowPlaying.Change.TRACK)
+        applyArt()
 
         // Перетаскивание окна за заголовок.
         var startX = 0; var startY = 0; var touchX = 0f; var touchY = 0f
@@ -291,6 +322,23 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
         else min(params.y + root.height + gap, screenH - h - gap)
     }
 
+    /** Обложка фоном и цвета из неё. */
+    private fun applyArt() {
+        val art = NowPlaying.art
+        coverAccent = CoverColors.accent(art)
+        if (art != null && prefs.getBoolean(Prefs.OVERLAY_COVER_BG, true)) {
+            Ui.setBlurred(coverBg, art, 60f)
+            coverBg.visibility = View.VISIBLE
+        } else {
+            coverBg.setImageDrawable(null)
+            coverBg.visibility = View.GONE
+        }
+        titleView.setTextColor(accent)
+        tab.imageTintList = ColorStateList.valueOf(accent)
+        rootBackground.setColor(colorBg)
+        (tab.background as? GradientDrawable)?.setColor(colorBg)
+    }
+
     private fun setOpacity(percent: Int) {
         opacity = percent.coerceIn(20, 100)
         prefs.edit().putInt(Prefs.OVERLAY_OPACITY, opacity).apply()
@@ -302,6 +350,7 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
         // Язычок появляется у того края, к которому окно ближе.
         val left = params.x + params.width / 2 < screenW / 2
         tabParams.gravity = Gravity.TOP or (if (left) Gravity.START else Gravity.END)
+        tab.imageTintList = ColorStateList.valueOf(accent)
         val r = dp(14).toFloat()
         tab.background = GradientDrawable().apply {
             setColor(colorBg)

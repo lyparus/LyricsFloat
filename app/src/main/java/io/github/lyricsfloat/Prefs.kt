@@ -15,6 +15,8 @@ object Prefs {
     const val AUTO_SCROLL_SPEED = "auto_scroll_speed"
     /** Показывать окно только во время воспроизведения. */
     const val AUTO_SHOW = "auto_show"
+    /** Размытая обложка фоном плавающего окна. */
+    const val OVERLAY_COVER_BG = "overlay_cover_bg"
     const val OVERLAY_OPACITY = "overlay_opacity"
     const val FULL_DIM = "full_dim"
     const val ONBOARDING_DONE = "onboarding_done"

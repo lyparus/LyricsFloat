@@ -115,5 +115,21 @@ object Ui {
         b.setTextColor(if (primary) 0xFF161616.toInt() else TEXT)
     }
 
+    /** Поставить в ImageView размытую копию картинки (на старых Android — дешёвое размытие уменьшением). */
+    fun setBlurred(view: android.widget.ImageView, bitmap: android.graphics.Bitmap, radius: Float) {
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 31) {
+                view.setImageBitmap(bitmap)
+                view.setRenderEffect(android.graphics.RenderEffect.createBlurEffect(radius, radius, android.graphics.Shader.TileMode.CLAMP))
+            } else {
+                val w = 24
+                val h = maxOf(1, w * bitmap.height / maxOf(1, bitmap.width))
+                view.setImageBitmap(android.graphics.Bitmap.createScaledBitmap(bitmap, w, h, true))
+            }
+        } catch (_: Exception) {
+            view.setImageDrawable(null)
+        }
+    }
+
     fun spacer(ctx: Context, hDp: Int) = View(ctx).apply { layoutParams = LinearLayout.LayoutParams(1, dp(ctx, hDp)) }
 }

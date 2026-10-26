@@ -22,6 +22,8 @@ class SettingsCard(
     sliderValue: Int,
     private val onSlider: (Int) -> Unit,
     private val onClose: () -> Unit,
+    /** Необязательный переключатель внизу панели: подпись, начальное значение, обработчик. */
+    toggle: Triple<String, Boolean, (Boolean) -> Unit>? = null,
 ) {
     private val density = ctx.resources.displayMetrics.density
     private fun dp(v: Int) = (v * density).toInt()
@@ -89,6 +91,25 @@ class SettingsCard(
                 override fun onStopTrackingTouch(bar: SeekBar) {}
             })
         })
+
+        toggle?.let { (label, value, onChange) ->
+            addView(android.widget.Switch(ctx).apply {
+                text = label
+                textSize = 14f
+                setTextColor(colorText)
+                isChecked = value
+                thumbTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(Ui.ACCENT, 0xFFBBBBBB.toInt()),
+                )
+                trackTintList = ColorStateList(
+                    arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()),
+                    intArrayOf(0x88FFCC00.toInt(), 0x44FFFFFF),
+                )
+                setPadding(0, dp(8), dp(8), 0)
+                setOnCheckedChangeListener { _, checked -> onChange(checked) }
+            })
+        }
     }
 
     init {
