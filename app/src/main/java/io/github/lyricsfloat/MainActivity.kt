@@ -67,8 +67,14 @@ class MainActivity : Activity() {
         }
         setContentView(root)
 
+        val current = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+        val lastSeen = prefs.getInt(Prefs.LAST_SEEN_VERSION, 0)
         if (!prefs.getBoolean(Prefs.ONBOARDING_DONE, false)) {
+            // Новому пользователю «Что нового» не нужен — он и так всё увидит в обучалке.
+            prefs.edit().putInt(Prefs.LAST_SEEN_VERSION, current).apply()
             startActivity(Intent(this, OnboardingActivity::class.java))
+        } else if (lastSeen < current) {
+            startActivity(Intent(this, WhatsNewActivity::class.java).putExtra("since", lastSeen))
         }
     }
 
@@ -109,6 +115,9 @@ class MainActivity : Activity() {
         addView(switchRow("Не гасить экран, пока открыто окно", Prefs.KEEP_SCREEN_ON, true))
         addView(Ui.linkButton(this@MainActivity, "Как пользоваться  →") {
             startActivity(Intent(this@MainActivity, OnboardingActivity::class.java))
+        })
+        addView(Ui.linkButton(this@MainActivity, "Что нового  →") {
+            startActivity(Intent(this@MainActivity, WhatsNewActivity::class.java).putExtra("since", -1))
         })
     }
 

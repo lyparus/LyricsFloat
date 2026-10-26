@@ -16,4 +16,5 @@ object Prefs {
     const val OVERLAY_OPACITY = "overlay_opacity"
     const val FULL_DIM = "full_dim"
     const val ONBOARDING_DONE = "onboarding_done"
+    const val LAST_SEEN_VERSION = "last_seen_version"
 }
