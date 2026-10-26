@@ -36,6 +36,10 @@ class LyricsPanel(
     private var lines: List<LyricLine> = emptyList()
     /** Показан текст без таймкодов — его можно прокручивать автоматически. */
     private var plainShown = false
+    /** Текущая позиция автопрокрутки (дробная, чтобы медленная скорость не терялась при округлении). */
+    private var scrollPos = 0f
+    private var lastTickAt = 0L
+    private var lastTrackPos: Long? = null
     private var lineViews: List<TextView> = emptyList()
     private var currentIdx = -1
     private var lastUserScroll = 0L
@@ -63,6 +67,8 @@ class LyricsPanel(
             l is Lyrics.Plain -> {
                 clear()
                 plainShown = true
+                lastTrackPos = null
+                lastTickAt = 0
                 linesBox.addView(lineView(l.text, colorActive))
                 view.scrollTo(0, 0)
             }
@@ -91,21 +97,42 @@ class LyricsPanel(
     }
 
     /**
-     * Текст без таймкодов: прокрутка пропорционально прогрессу трека,
-     * так что пауза и перемотка учитываются сами. Сдвиг кнопками тоже работает.
+     * Текст без таймкодов: едет с постоянной скоростью, пока трек играет.
+     * Базовая скорость — весь текст за длительность трека, множитель задаётся в настройках.
+     * Прокрутил пальцем — продолжаем с того же места; перемотал трек — прыгаем на нужное место.
      */
     private fun autoScrollPlain() {
-        if (!NowPlaying.autoScroll) return
+        val now = SystemClock.uptimeMillis()
+        val dt = if (lastTickAt == 0L) 0L else now - lastTickAt
+        lastTickAt = now
+        if (!NowPlaying.autoScroll) { lastTrackPos = null; return }
         val duration = NowPlaying.durationMs
-        if (duration <= 0) return
-        if (SystemClock.uptimeMillis() - lastUserScroll < 3000) return
-        val pos = NowPlaying.position() ?: return
         val maxScroll = linesBox.height - view.height
-        if (maxScroll <= 0) return
-        val fraction = ((pos + NowPlaying.offsetMs).toDouble() / duration).coerceIn(0.0, 1.0)
-        val target = (fraction * maxScroll).toInt()
-        // Обычное движение — по чуть-чуть, а после перемотки — плавным прыжком.
-        if (abs(target - view.scrollY) > view.height / 2) view.smoothScrollTo(0, target) else view.scrollTo(0, target)
+        val pos = NowPlaying.position()
+        if (duration <= 0 || maxScroll <= 0 || pos == null) return
+
+        // Пользователь листает сам — ждём и запоминаем, где он остановился.
+        if (now - lastUserScroll < USER_PAUSE_MS) {
+            scrollPos = view.scrollY.toFloat()
+            lastTrackPos = pos
+            return
+        }
+
+        val prev = lastTrackPos
+        lastTrackPos = pos
+        val expected = if (NowPlaying.isPlaying) dt else 0L
+        if (prev == null || abs((pos - prev) - expected) > SEEK_THRESHOLD_MS) {
+            // Первый тик или перемотка трека — встаём на место, соответствующее позиции.
+            val fraction = ((pos + NowPlaying.offsetMs).toDouble() / duration).coerceIn(0.0, 1.0)
+            scrollPos = (fraction * maxScroll).toFloat()
+            view.smoothScrollTo(0, scrollPos.toInt())
+            return
+        }
+        if (!NowPlaying.isPlaying || dt <= 0) return
+
+        val pxPerMs = maxScroll.toFloat() / duration * NowPlaying.autoScrollSpeed
+        scrollPos = (scrollPos + pxPerMs * dt).coerceIn(0f, maxScroll.toFloat())
+        view.scrollTo(0, scrollPos.toInt())
     }
 
     /** Заставить следующий [tick] заново выставить текущую строку и прокрутку. */
@@ -177,6 +204,10 @@ class LyricsPanel(
     }
 
     companion object {
+        private const val USER_PAUSE_MS = 1500L
+        private const val SEEK_THRESHOLD_MS = 2500L
+
+        fun formatSpeed(speed: Float) = String.format(Locale.US, "%.1f×", speed)
         fun formatOffset(ms: Long) =
             if (ms == 0L) "0 с" else String.format(Locale.US, "%+.1f с", ms / 1000.0)
 

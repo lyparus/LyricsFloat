@@ -31,6 +31,9 @@ class SettingsCard(
 
     private val fontValue = valueLabel()
     private val offsetValue = valueLabel().apply { setOnClickListener { NowPlaying.setOffset(0) } }
+    private val speedValue = valueLabel().apply { setOnClickListener { setSpeed(1f) } }
+    private lateinit var speedRow: LinearLayout
+    private lateinit var speedHint: TextView
 
     val view = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
@@ -63,6 +66,13 @@ class SettingsCard(
             onPlus = { NowPlaying.setOffset(NowPlaying.offsetMs + 500) }))
         addView(hint("«Раньше» — если текст отстаёт от голоса. Тап по значению — сброс."))
 
+        speedRow = row("Скорость прокрутки", R.drawable.ic_minus, speedValue, R.drawable.ic_plus,
+            onMinus = { setSpeed(NowPlaying.autoScrollSpeed - 0.1f) },
+            onPlus = { setSpeed(NowPlaying.autoScrollSpeed + 0.1f) })
+        addView(speedRow)
+        speedHint = hint("Для текста без таймкодов. 1.0× — весь текст за время трека.")
+        addView(speedHint)
+
         addView(label(sliderLabel).apply { setPadding(0, dp(10), 0, 0) })
         addView(SeekBar(ctx).apply {
             max = 100
@@ -89,6 +99,18 @@ class SettingsCard(
     fun refresh() {
         fontValue.text = panel.fontSize.toInt().toString()
         offsetValue.text = LyricsPanel.formatOffset(NowPlaying.offsetMs)
+        speedValue.text = LyricsPanel.formatSpeed(NowPlaying.autoScrollSpeed)
+        // Скорость нужна только тексту без таймкодов.
+        val plain = if (NowPlaying.lyrics is Lyrics.Plain) View.VISIBLE else View.GONE
+        speedRow.visibility = plain
+        speedHint.visibility = plain
+    }
+
+    private fun setSpeed(speed: Float) {
+        NowPlaying.setAutoScrollSpeed(speed)
+        ctx.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE).edit()
+            .putFloat(Prefs.AUTO_SCROLL_SPEED, NowPlaying.autoScrollSpeed).apply()
+        refresh()
     }
 
     var visible: Boolean

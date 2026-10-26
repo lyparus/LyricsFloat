@@ -12,6 +12,7 @@ object Prefs {
     const val FONT_FULL = "font_size_full"
     const val KEEP_SCREEN_ON = "keep_screen_on"
     const val AUTO_SCROLL = "auto_scroll"
+    const val AUTO_SCROLL_SPEED = "auto_scroll_speed"
     const val OVERLAY_OPACITY = "overlay_opacity"
     const val FULL_DIM = "full_dim"
     const val ONBOARDING_DONE = "onboarding_done"

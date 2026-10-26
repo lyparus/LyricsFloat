@@ -158,8 +158,11 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
                 panel.render()
                 LyricsPanel.styleAutoScroll(autoScrollButton)
             }
-            NowPlaying.Change.LYRICS -> { panel.render(); LyricsPanel.styleAutoScroll(autoScrollButton) }
-            NowPlaying.Change.AUTO_SCROLL -> LyricsPanel.styleAutoScroll(autoScrollButton)
+            NowPlaying.Change.LYRICS -> {
+                panel.render(); LyricsPanel.styleAutoScroll(autoScrollButton); settings.refresh()
+                if (settingsOpen) { placeSettings(); relayout(settings.view, settingsParams) }
+            }
+            NowPlaying.Change.AUTO_SCROLL -> { LyricsPanel.styleAutoScroll(autoScrollButton); settings.refresh() }
             NowPlaying.Change.OFFSET -> {
                 settings.refresh()
                 panel.recenter()

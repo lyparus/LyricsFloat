@@ -67,8 +67,8 @@ class FullscreenActivity : Activity() {
                 LyricsPanel.styleAutoScroll(autoScrollButton)
             }
             NowPlaying.Change.PLAYBACK -> updatePlayback()
-            NowPlaying.Change.AUTO_SCROLL -> LyricsPanel.styleAutoScroll(autoScrollButton)
-            NowPlaying.Change.LYRICS -> { panel.render(); LyricsPanel.styleAutoScroll(autoScrollButton) }
+            NowPlaying.Change.AUTO_SCROLL -> { LyricsPanel.styleAutoScroll(autoScrollButton); settings.refresh() }
+            NowPlaying.Change.LYRICS -> { panel.render(); LyricsPanel.styleAutoScroll(autoScrollButton); settings.refresh() }
             NowPlaying.Change.ART -> showArt(NowPlaying.art)
             NowPlaying.Change.OFFSET -> {
                 settings.refresh()

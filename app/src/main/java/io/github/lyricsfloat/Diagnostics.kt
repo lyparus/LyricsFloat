@@ -72,7 +72,9 @@ class App : Application() {
             }
             previous?.uncaughtException(thread, e)
         }
-        NowPlaying.setAutoScroll(getSharedPreferences(Prefs.NAME, MODE_PRIVATE).getBoolean(Prefs.AUTO_SCROLL, false))
+        val prefs = getSharedPreferences(Prefs.NAME, MODE_PRIVATE)
+        NowPlaying.setAutoScroll(prefs.getBoolean(Prefs.AUTO_SCROLL, false))
+        NowPlaying.setAutoScrollSpeed(prefs.getFloat(Prefs.AUTO_SCROLL_SPEED, 1f))
         // Следим за плеером с самого запуска процесса, не дожидаясь сервиса уведомлений.
         runCatching { MediaWatcher.start(this) }.onFailure { Diagnostics.record(it) }
     }

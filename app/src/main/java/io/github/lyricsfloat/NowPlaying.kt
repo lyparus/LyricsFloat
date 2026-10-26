@@ -41,6 +41,8 @@ object NowPlaying {
     var fullscreenOpen = false; private set
     /** Плавно прокручивать текст без таймкодов в такт прогрессу трека. */
     var autoScroll = false; private set
+    /** Множитель скорости автопрокрутки: 1.0 — весь текст ровно за длительность трека. */
+    var autoScrollSpeed = 1f; private set
 
     var positionProvider: () -> Long? = { null }
     var retry: () -> Unit = {}
@@ -96,6 +98,11 @@ object NowPlaying {
     fun setAutoScroll(on: Boolean) {
         if (on == autoScroll) return
         autoScroll = on
+        emit(Change.AUTO_SCROLL)
+    }
+
+    fun setAutoScrollSpeed(speed: Float) {
+        autoScrollSpeed = (Math.round(speed * 10) / 10f).coerceIn(0.3f, 3f)
         emit(Change.AUTO_SCROLL)
     }
 
