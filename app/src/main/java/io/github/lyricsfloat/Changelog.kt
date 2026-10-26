@@ -5,6 +5,10 @@ object Changelog {
     data class Release(val versionCode: Int, val version: String, val items: List<String>)
 
     val releases = listOf(
+        Release(12, "1.9.1", listOf(
+            "Исправлено: плавающее окно растягивалось на весь экран по высоте",
+            "Исправлено: увеличенная текущая строка обрезалась по краю окна",
+        )),
         Release(11, "1.9", listOf(
             "Экран «Что нового» — показывает изменения после обновления",
             "Скорость автопрокрутки в настройках вида",

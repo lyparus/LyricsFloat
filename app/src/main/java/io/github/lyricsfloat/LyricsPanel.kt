@@ -51,6 +51,10 @@ class LyricsPanel(
     private val linesBox = LinearLayout(ctx).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(4), dp(edgePaddingDp), dp(4), dp(edgePaddingDp))
+        // Ширина изменилась (поворот, изменение размера окна) — пересчитать запас под увеличение строки.
+        addOnLayoutChangeListener { _, l, _, r, _, oldL, _, oldR, _ ->
+            if (r - l != oldR - oldL) post { applyScaleRoom() }
+        }
     }
 
     val view = ScrollView(ctx).apply {
@@ -176,7 +180,25 @@ class LyricsPanel(
                 linesBox.addView(v)
             }
         }
+        applyScaleRoom()
         view.scrollTo(0, 0)
+    }
+
+    /**
+     * Текущая строка увеличивается масштабом, а переносится по обычной ширине — без запаса
+     * её край уходит за окно. Поэтому все строки с таймкодами переносятся чуть уже:
+     * у выровненных слева запас справа, у центрированных — поровну с двух сторон.
+     */
+    private fun applyScaleRoom() {
+        val width = linesBox.width - linesBox.paddingLeft - linesBox.paddingRight
+        if (width <= 0 || lineViews.isEmpty()) return
+        val room = (width * (1f - 1f / activeScale)).toInt() + dp(2)
+        val (left, right) = if (centered) room / 2 to room - room / 2 else 0 to room
+        for (v in lineViews) {
+            if (v.paddingLeft != left || v.paddingRight != right) {
+                v.setPadding(left, v.paddingTop, right, v.paddingBottom)
+            }
+        }
     }
 
     private fun showStatus(text: String, onClick: (() -> Unit)? = null) {
