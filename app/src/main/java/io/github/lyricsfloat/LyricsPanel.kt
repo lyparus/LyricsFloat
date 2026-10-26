@@ -219,8 +219,15 @@ class LyricsPanel(
         }.also { styleAutoScroll(it) }
 
         fun styleAutoScroll(b: ImageView) {
-            b.visibility = if (NowPlaying.lyrics is Lyrics.Plain) android.view.View.VISIBLE else android.view.View.GONE
-            b.imageTintList = ColorStateList.valueOf(if (NowPlaying.autoScroll) 0xFFFFCC00.toInt() else 0x99FFFFFF.toInt())
+            // Кнопка видна всегда, но работает только у текста без таймкодов:
+            // у синхронизированного текста прокрутка и так идёт сама.
+            val usable = NowPlaying.lyrics is Lyrics.Plain
+            b.visibility = android.view.View.VISIBLE
+            b.isEnabled = usable
+            b.alpha = if (usable) 0.9f else 0.3f
+            b.imageTintList = ColorStateList.valueOf(
+                if (usable && NowPlaying.autoScroll) 0xFFFFCC00.toInt() else 0xFFFFFFFF.toInt()
+            )
         }
 
         /** Кнопка-иконка в общем стиле приложения. */
