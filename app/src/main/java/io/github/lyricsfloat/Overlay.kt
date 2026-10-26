@@ -135,7 +135,7 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
     }
 
     /** Размытая обложка под содержимым. */
-    private val coverBg = ImageView(ctx).apply {
+    private val coverBg = FillView(ctx).apply {
         scaleType = ImageView.ScaleType.CENTER_CROP
         visibility = View.GONE
     }
@@ -143,7 +143,7 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
     /** Окно целиком: обложка → полупрозрачный тёмный слой → содержимое, со скруглёнными углами. */
     private val root = android.widget.FrameLayout(ctx).apply {
         addView(coverBg, android.widget.FrameLayout.LayoutParams(-1, -1))
-        addView(View(ctx).apply { background = rootBackground }, android.widget.FrameLayout.LayoutParams(-1, -1))
+        addView(FillView(ctx).apply { background = rootBackground }, android.widget.FrameLayout.LayoutParams(-1, -1))
         addView(content, android.widget.FrameLayout.LayoutParams(-1, -2))
         outlineProvider = object : android.view.ViewOutlineProvider() {
             override fun getOutline(view: View, outline: android.graphics.Outline) =
@@ -427,5 +427,17 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
             } catch (_: ActivityNotFoundException) {
             }
         }
+    }
+}
+
+/**
+ * Слой фона окна: растягивается под размер окна, но сам на этот размер не влияет.
+ * Обычный View в окне «по содержимому» просит всю высоту экрана — и окно становится на весь экран.
+ */
+private class FillView(ctx: Context) : ImageView(ctx) {
+    override fun onMeasure(widthSpec: Int, heightSpec: Int) {
+        fun size(spec: Int) =
+            if (View.MeasureSpec.getMode(spec) == View.MeasureSpec.EXACTLY) View.MeasureSpec.getSize(spec) else 0
+        setMeasuredDimension(size(widthSpec), size(heightSpec))
     }
 }
