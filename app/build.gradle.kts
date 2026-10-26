@@ -13,8 +13,8 @@ android {
         applicationId = "io.github.lyricsfloat"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "1.8"
+        versionCode = 11
+        versionName = "1.9"
     }
 
     buildTypes {
