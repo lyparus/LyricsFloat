@@ -1,6 +1,10 @@
 package io.github.lyricsfloat
 
+import android.animation.ObjectAnimator
+import android.animation.PropertyValuesHolder
+import android.animation.ValueAnimator
 import android.app.Activity
+import android.view.animation.AccelerateDecelerateInterpolator
 import android.content.ComponentName
 import android.service.notification.NotificationListenerService
 import android.content.res.ColorStateList
@@ -49,6 +53,8 @@ class FullscreenActivity : Activity() {
     private lateinit var seekRow: LinearLayout
     private lateinit var playButton: ImageView
     private var userSeeking = false
+    /** Медленное «дыхание» обложки на фоне. */
+    private var drift: ObjectAnimator? = null
     private lateinit var autoScrollButton: ImageView
 
     private val ticker = object : Runnable {
@@ -82,7 +88,7 @@ class FullscreenActivity : Activity() {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        panel = LyricsPanel(this, Prefs.FONT_FULL, 26f, centered = true, bold = true, edgePaddingDp = 220)
+        panel = LyricsPanel(this, Prefs.FONT_FULL, 26f, centered = true, bold = true, edgePaddingDp = 220, activeScale = 1.08f)
 
         backdrop = ImageView(this).apply {
             scaleType = ImageView.ScaleType.CENTER_CROP
@@ -243,6 +249,7 @@ class FullscreenActivity : Activity() {
     }
 
     override fun onStop() {
+        stopDrift()
         handler.removeCallbacks(ticker)
         NowPlaying.removeListener(stateListener)
         NowPlaying.setFullscreen(false)
@@ -308,9 +315,11 @@ class FullscreenActivity : Activity() {
         cover.visibility = if (art == null) View.GONE else View.VISIBLE
         cover.setImageBitmap(art)
         if (art == null) {
+            stopDrift()
             backdrop.setImageDrawable(null)
             return
         }
+        startDrift()
         try {
             if (Build.VERSION.SDK_INT >= 31) {
                 backdrop.setImageBitmap(art)
@@ -324,6 +333,29 @@ class FullscreenActivity : Activity() {
         } catch (_: Exception) {
             backdrop.setImageDrawable(null)
         }
+    }
+
+    private fun startDrift() {
+        if (drift?.isStarted == true) return
+        val shift = dp(18).toFloat()
+        drift = ObjectAnimator.ofPropertyValuesHolder(
+            backdrop,
+            PropertyValuesHolder.ofFloat(View.SCALE_X, 1.15f, 1.3f),
+            PropertyValuesHolder.ofFloat(View.SCALE_Y, 1.15f, 1.3f),
+            PropertyValuesHolder.ofFloat(View.TRANSLATION_X, -shift, shift),
+            PropertyValuesHolder.ofFloat(View.TRANSLATION_Y, shift / 2, -shift / 2),
+        ).apply {
+            duration = 22_000
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = AccelerateDecelerateInterpolator()
+            start()
+        }
+    }
+
+    private fun stopDrift() {
+        drift?.cancel()
+        drift = null
     }
 
     private fun hideSystemBars() {

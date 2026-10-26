@@ -63,7 +63,8 @@ object LyricsFetcher {
         return result
     }
 
-    private fun find(artist: String, title: String, album: String?, durationMs: Long, onStatus: (String) -> Unit): Lyrics {
+    private fun find(artist: String, title: String, album: String?, rawDurationMs: Long, onStatus: (String) -> Unit): Lyrics {
+        val durationMs = if (isSpeedChanged(title)) 0L else rawDurationMs
         var lastError: IOException? = null
         val lrclib = try {
             findLrclib(artist, title, album, durationMs, onStatus)
@@ -108,9 +109,18 @@ object LyricsFetcher {
             }
         }
 
-        // 3. Поиск по очищенному названию: без "(feat. ...)", "[Remix]" и соавторов.
+        // 3. Поиск по очищенному названию: без "(feat. ...)", "sped up", "гр." и соавторов.
         val cleanTitle = cleanTitle(title)
         val mainArtist = mainArtist(artist)
+        if (cleanTitle != title || mainArtist != artist) {
+            val cleanExact = mutableListOf("artist_name" to mainArtist, "track_name" to cleanTitle)
+            if (sec > 0) cleanExact += "duration" to sec.toString()
+            try {
+                get("/get-cached", cleanExact, onStatus)?.let { body -> parse(JSONObject(body))?.let { return it } }
+            } catch (e: IOException) {
+                lastError = e
+            }
+        }
         val queries = listOf(
             listOf("track_name" to cleanTitle, "artist_name" to mainArtist),
             listOf("q" to "$mainArtist $cleanTitle"),
@@ -171,14 +181,41 @@ object LyricsFetcher {
     private fun hasText(obj: JSONObject, key: String) =
         !obj.isNull(key) && obj.optString(key).isNotBlank()
 
-    internal fun cleanTitle(title: String) =
-        title.replace(Regex("""\s*[(\[][^)\]]*[)\]]"""), "")
-            .replace(Regex("""\s+(feat\.?|ft\.?)\s.*$""", RegexOption.IGNORE_CASE), "")
-            .trim().ifEmpty { title }
+    /** Приписки перезаливов: ускоренные/замедленные версии, ремиксы, «lyrics», «official video» и т. п. */
+    private const val TAGS = """sped\s*up|speed\s*up|slowed(\s*(\+|and|&)\s*reverb(ed)?)?|reverb(ed)?|nightcore|""" +
+        """8d(\s*audio)?|bass\s*boost(ed)?|remix|mix|edit|radio\s*edit|extended(\s*mix)?|remaster(ed)?(\s*\d{4})?|""" +
+        """lyrics?(\s*video)?|official(\s*(music|lyric))?(\s*(video|audio|clip))?|music\s*video|audio|video|""" +
+        """visuali[sz]er|hd|hq|4k|tik\s*tok(\s*version)?|clean|explicit|instrumental|karaoke|cover|""" +
+        """prod\.?\s*(by)?\s*.*|премьера(\s*клипа)?|клип|текст(\s*песни)?|ускоренн\w*|замедленн\w*|ремикс"""
 
-    internal fun mainArtist(artist: String) =
-        artist.split(Regex("""\s*(,|&|\s(feat\.?|ft\.?|x)\s)\s*""", RegexOption.IGNORE_CASE))
-            .first().trim().ifEmpty { artist }
+    /** Версия с изменённой скоростью: длительность не совпадёт с оригиналом. */
+    private val speedTag = Regex("""sped\s*up|speed\s*up|slowed|nightcore|ускоренн|замедленн""", RegexOption.IGNORE_CASE)
+
+    internal fun isSpeedChanged(title: String) = speedTag.containsMatchIn(title)
+
+    internal fun cleanTitle(title: String): String {
+        val cleaned = title
+            .replace(Regex("""\s*[(\[【][^)\]】]*[)\]】]"""), "")                     // (Official Video), [sped up]
+            .replace(Regex("""^\s*\d{1,3}\s*[.)\-–]\s+"""), "")                          // «01. Название»
+            .replace(Regex("""\s+(feat\.?|ft\.?|при уч\.?)\s.*$""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s*[|｜/].*$"""), "")                                       // «… | Премьера»
+            // «Название - sped up», «Название slowed + reverb» — приписка в конце, даже без скобок.
+            .replace(Regex("""(\s*[-–—:]\s*|\s+)($TAGS)(\s*[-–—+&,]?\s*($TAGS))*\s*$""", RegexOption.IGNORE_CASE), "")
+            .trim().trim('-', '–', '—', ':', '"', '«', '»', ' ')
+        return cleaned.ifEmpty { title }
+    }
+
+    internal fun mainArtist(artist: String): String {
+        val first = artist.split(Regex("""\s*(,|&|;|\s(feat\.?|ft\.?|x|и|при уч\.?)\s)\s*""", RegexOption.IGNORE_CASE))
+            .first()
+        val cleaned = first
+            .replace(Regex("""^\s*(гр\.|группа|group|band)\s+""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""VEVO$"""), "")
+            .replace(Regex("""\s+(official|music|официальный канал)$""", RegexOption.IGNORE_CASE), "")
+            .trim().trim('"', '«', '»')
+        return cleaned.ifEmpty { artist.trim() }
+    }
 
     /** GET с повторами при перегрузке сервера; null при 404. */
     private fun get(path: String, params: List<Pair<String, String>>, onStatus: (String) -> Unit): String? {

@@ -331,8 +331,13 @@ class Overlay(private val ctx: Context, private val onClose: () -> Unit) {
 
     private fun setAttached(v: View, lp: WindowManager.LayoutParams, want: Boolean) {
         if (want && v !in attachedViews) {
+            // Мягкое появление: из прозрачного и чуть уменьшенного.
+            v.alpha = 0f
+            v.scaleX = 0.96f
+            v.scaleY = 0.96f
             wm.addView(v, lp)
             attachedViews += v
+            v.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(180).start()
         } else if (!want && v in attachedViews) {
             wm.removeView(v)
             attachedViews -= v

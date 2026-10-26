@@ -24,6 +24,7 @@ object MediaWatcher : SharedPreferences.OnSharedPreferenceChangeListener {
 
     private const val MAX_AUTO_RETRIES = 3
     private const val AUTO_RETRY_DELAY_MS = 15_000L
+    private const val AUTO_HIDE_DELAY_MS = 4_000L
 
     private lateinit var ctx: Context
     var running = false; private set
@@ -117,7 +118,7 @@ object MediaWatcher : SharedPreferences.OnSharedPreferenceChangeListener {
 
     override fun onSharedPreferenceChanged(p: SharedPreferences, key: String?) {
         if (key == Prefs.ENABLED) KeepAliveService.sync(ctx)
-        if (key == Prefs.ENABLED || Source.entries.any { it.prefKey == key }) refresh()
+        if (key == Prefs.ENABLED || key == Prefs.AUTO_SHOW || Source.entries.any { it.prefKey == key }) refresh()
         if (key == Prefs.KEEP_SCREEN_ON) overlay?.applyKeepScreenOn()
     }
 
@@ -202,15 +203,30 @@ object MediaWatcher : SharedPreferences.OnSharedPreferenceChangeListener {
         }
         updateArt(md)
         updatePlayback()
+    }
 
-        if (enabled && Settings.canDrawOverlays(ctx)) {
-            val ov = overlay ?: Overlay(ctx, onClose = {
-                prefs.edit().putBoolean(Prefs.ENABLED, false).apply()
-            }).also { overlay = it }
-            ov.show()
-        } else {
+    private val hideOnPause = Runnable { overlay?.hide() }
+
+    /**
+     * Показать или спрятать окно. В режиме автопоказа окно появляется, когда трек играет,
+     * и прячется на паузе — с задержкой, чтобы не мигать при коротких паузах.
+     */
+    private fun syncOverlay() {
+        main.removeCallbacks(hideOnPause)
+        val enabled = prefs.getBoolean(Prefs.ENABLED, false)
+        if (!enabled || !NowPlaying.hasTrack || !Settings.canDrawOverlays(ctx)) {
             overlay?.hide()
+            return
         }
+        val autoShow = prefs.getBoolean(Prefs.AUTO_SHOW, false)
+        if (autoShow && !NowPlaying.isPlaying) {
+            main.postDelayed(hideOnPause, AUTO_HIDE_DELAY_MS)
+            return
+        }
+        val ov = overlay ?: Overlay(ctx, onClose = {
+            prefs.edit().putBoolean(Prefs.ENABLED, false).apply()
+        }).also { overlay = it }
+        ov.show()
     }
 
     private fun fetchLyrics(track: Track) {
@@ -250,6 +266,7 @@ object MediaWatcher : SharedPreferences.OnSharedPreferenceChangeListener {
         val playing = c?.playbackState?.state == PlaybackState.STATE_PLAYING
         val duration = c?.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
         NowPlaying.setPlayback(playing, duration.coerceAtLeast(0))
+        syncOverlay()
     }
 
     /** Обложка: плееры кладут её в метаданные картинкой или ссылкой. */

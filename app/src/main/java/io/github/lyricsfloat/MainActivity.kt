@@ -112,6 +112,7 @@ class MainActivity : Activity() {
         hint = Ui.text(this@MainActivity, "", 13f, Ui.TEXT_DIM).apply { setPadding(dp(2), dp(10), dp(2), 0) }
         addView(hint)
 
+        addView(switchRow("Показывать окно только во время воспроизведения", Prefs.AUTO_SHOW, false))
         addView(switchRow("Не гасить экран, пока открыто окно", Prefs.KEEP_SCREEN_ON, true))
         addView(Ui.linkButton(this@MainActivity, "Как пользоваться  →") {
             startActivity(Intent(this@MainActivity, OnboardingActivity::class.java))

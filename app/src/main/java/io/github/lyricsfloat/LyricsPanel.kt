@@ -24,6 +24,8 @@ class LyricsPanel(
     private val centered: Boolean,
     private val bold: Boolean,
     edgePaddingDp: Int,
+    /** Во сколько раз увеличивается текущая строка. */
+    private val activeScale: Float = 1.05f,
 ) {
     private val prefs = ctx.getSharedPreferences(Prefs.NAME, Context.MODE_PRIVATE)
     private val density = ctx.resources.displayMetrics.density
@@ -42,6 +44,8 @@ class LyricsPanel(
     private var lastTrackPos: Long? = null
     private var lineViews: List<TextView> = emptyList()
     private var currentIdx = -1
+    /** Строка, которая сейчас подсвечена на экране (может отличаться от [currentIdx] после recenter). */
+    private var highlighted = -1
     private var lastUserScroll = 0L
 
     private val linesBox = LinearLayout(ctx).apply {
@@ -59,6 +63,8 @@ class LyricsPanel(
 
     /** Перерисовать по текущему состоянию [NowPlaying]. */
     fun render() {
+        view.alpha = 0f
+        view.animate().alpha(1f).setDuration(220).start()
         val l = NowPlaying.lyrics
         when {
             !NowPlaying.hasTrack -> showStatus("Сейчас ничего не играет")
@@ -88,7 +94,14 @@ class LyricsPanel(
         // Небольшое опережение, чтобы строка загоралась чуть раньше голоса.
         val idx = lines.indexOfLast { it.timeMs <= pos + 250 + NowPlaying.offsetMs }
         if (idx == currentIdx) return
-        lineViews.forEachIndexed { i, v -> v.setTextColor(if (i == idx) colorActive else colorDim) }
+        if (idx != highlighted) {
+            // Плавно гасим прошлую строку и разжигаем текущую.
+            lineViews.getOrNull(highlighted)?.animate()
+                ?.alpha(INACTIVE_ALPHA)?.scaleX(1f)?.scaleY(1f)?.setDuration(ANIM_MS)?.start()
+            lineViews.getOrNull(idx)?.animate()
+                ?.alpha(1f)?.scaleX(activeScale)?.scaleY(activeScale)?.setDuration(ANIM_MS)?.start()
+            highlighted = idx
+        }
         currentIdx = idx
         val v = lineViews.getOrNull(idx) ?: return
         if (SystemClock.uptimeMillis() - lastUserScroll > 3000) {
@@ -152,7 +165,8 @@ class LyricsPanel(
         clear()
         lines = newLines
         lineViews = newLines.map { line ->
-            lineView(line.text, colorDim).also { v ->
+            lineView(line.text, colorActive).also { v ->
+                v.alpha = INACTIVE_ALPHA
                 // Тап по строке — перемотать трек на неё.
                 v.setOnClickListener {
                     NowPlaying.controls?.seekTo(max(0L, line.timeMs - NowPlaying.offsetMs))
@@ -187,6 +201,7 @@ class LyricsPanel(
 
     private fun clear() {
         plainShown = false
+        highlighted = -1
         linesBox.removeAllViews()
         lines = emptyList()
         lineViews = emptyList()
@@ -199,12 +214,16 @@ class LyricsPanel(
         textSize = fontSize
         if (bold) setTypeface(Typeface.DEFAULT, Typeface.BOLD)
         if (centered) gravity = Gravity.CENTER_HORIZONTAL
+        // Слева выровненный текст увеличивается от левого края, а не от середины.
+        if (!centered) pivotX = 0f
         setLineSpacing(0f, 1.15f)
         setPadding(0, dp(if (bold) 8 else 4), 0, dp(if (bold) 8 else 4))
     }
 
     companion object {
         private const val USER_PAUSE_MS = 1500L
+        private const val ANIM_MS = 250L
+        private const val INACTIVE_ALPHA = 0.45f
         private const val SEEK_THRESHOLD_MS = 2500L
 
         fun formatSpeed(speed: Float) = String.format(Locale.US, "%.1f×", speed)
